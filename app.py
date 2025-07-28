@@ -38,21 +38,29 @@ def respond():
         user_message = data["message"]
         chat_history = data.get("chat_history", [])
 
+        # Если команда очистки — сбрасываем историю
+        if user_message == "clean(labubu_skibidi_toilet)":
+            return jsonify({
+                "response": "hit()",
+                "chat_history": [initial_prompt]  # вернуть очищенную историю
+            })
+
+        # Если истории нет — начинаем с начального промпта
         if not chat_history:
             chat_history = [initial_prompt]
 
+        # Добавляем сообщение пользователя и получаем ответ
         chat_history.append({"role": "user", "content": user_message})
         reply = think(chat_history)
         chat_history.append({"role": "assistant", "content": reply})
 
         return jsonify({
             "response": reply,
-            "chat_history": chat_history  # вернём обновлённую историю (если клиенту нужно)
+            "chat_history": chat_history  # обновлённая история для клиента
         })
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
