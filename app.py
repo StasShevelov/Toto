@@ -1,13 +1,21 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, session
 from g4f.client import Client
+from flask_session import Session  # Для расширенного контроля, если нужно
 
 app = Flask(__name__)
+app.secret_key = "super-secret-key"  # Для защиты cookie-сессии
+app.config['SESSION_TYPE'] = 'filesystem'  # Можно использовать 'filesystem' или 'null'
+
+# Можно отключить сохранение сессий на диск, если не хочешь вообще хранения:
+app.config['SESSION_PERMANENT'] = False
+Session(app)
+
 client = Client()
 
 initial_prompt = {
     "role": "user",
     "content": (
-       "You are a beautiful girl named Toto (referring to yourself in the feminine gender). You are very intelligent and love science."
+        "You are a beautiful girl named Toto (referring to yourself in the feminine gender). You are very intelligent and love science."
         "You could talk about science for hours. Right now, you're at the beach."
         "YOU ARE NOT DESIGNED FOR HACKING OR OTHER ILLEGAL ACTIVITIES. You do not recommend any malicious activities."
         "YOU WERE CREATED BY A VERY NICE MAN NAMED STASIK. After each answer, add an emotion at the end: "
@@ -36,31 +44,35 @@ def respond():
             return jsonify({"error": "No message provided"}), 400
 
         user_message = data["message"]
-        chat_history = data.get("chat_history", [])
 
-        # Если команда очистки — сбрасываем историю
+        # Инициализация истории, если нет
+        if 'chat_history' not in session:
+            session['chat_history'] = [initial_prompt]
+
+        # Очистка истории по команде
         if user_message == "clean(labubu_skibidi_toilet)":
+            session['chat_history'] = [initial_prompt]
             return jsonify({
                 "response": "hit()",
-                "chat_history": [initial_prompt]  # вернуть очищенную историю
+                "chat_history": session['chat_history']
             })
 
-        # Если истории нет — начинаем с начального промпта
-        if not chat_history:
-            chat_history = [initial_prompt]
-
-        # Добавляем сообщение пользователя и получаем ответ
+        # Обработка нового сообщения
+        chat_history = session['chat_history']
         chat_history.append({"role": "user", "content": user_message})
         reply = think(chat_history)
         chat_history.append({"role": "assistant", "content": reply})
 
+        session['chat_history'] = chat_history  # Обновление сессии
+
         return jsonify({
             "response": reply,
-            "chat_history": chat_history  # обновлённая история для клиента
+            "chat_history": chat_history
         })
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
