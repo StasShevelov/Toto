@@ -62,8 +62,7 @@ def respond():
 
         reply = think(chat_history)
 
-        if reply == "model_error()":
-            reply = "Я не могу сейчас ответить, попробуй позже. neutral()"
+        
 
         chat_history.append({"role": "assistant", "content": reply})
 
