@@ -1,12 +1,11 @@
 from flask import Flask, request, jsonify, session
 from g4f.client import Client
-from flask_session import Session  # Для расширенного контроля, если нужно
+from flask_session import Session
+import traceback
 
 app = Flask(__name__)
-app.secret_key = "super-secret-key"  # Для защиты cookie-сессии
-app.config['SESSION_TYPE'] = 'filesystem'  # Можно использовать 'filesystem' или 'null'
-
-# Можно отключить сохранение сессий на диск, если не хочешь вообще хранения:
+app.secret_key = "super-secret-key"
+app.config['SESSION_TYPE'] = 'filesystem'
 app.config['SESSION_PERMANENT'] = False
 Session(app)
 
@@ -25,15 +24,18 @@ initial_prompt = {
     )
 }
 
-
 def think(chat_history):
-    response = client.chat.completions.create(
-        model="deepseek-r1",
-        messages=chat_history,
-        web_search=False
-    )
-    return response.choices[0].message.content
-
+    try:
+        response = client.chat.completions.create(
+            model="deepseek-r1-distill-qwen-1.5b",
+            messages=chat_history,
+            web_search=False
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        print("🔥 Ошибка вызова модели:", e)
+        traceback.print_exc()
+        return "model_error()"
 
 @app.route('/respond', methods=['POST'])
 def respond():
@@ -45,11 +47,9 @@ def respond():
 
         user_message = data["message"]
 
-        # Инициализация истории, если нет
         if 'chat_history' not in session:
             session['chat_history'] = [initial_prompt]
 
-        # Очистка истории по команде
         if user_message == "clean(labubu_skibidi_toilet)":
             session['chat_history'] = [initial_prompt]
             return jsonify({
@@ -57,13 +57,17 @@ def respond():
                 "chat_history": session['chat_history']
             })
 
-        # Обработка нового сообщения
         chat_history = session['chat_history']
         chat_history.append({"role": "user", "content": user_message})
+
         reply = think(chat_history)
+
+        if reply == "model_error()":
+            reply = "Я не могу сейчас ответить, попробуй позже. neutral()"
+
         chat_history.append({"role": "assistant", "content": reply})
 
-        session['chat_history'] = chat_history  # Обновление сессии
+        session['chat_history'] = chat_history
 
         return jsonify({
             "response": reply,
@@ -71,8 +75,11 @@ def respond():
         })
 
     except Exception as e:
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
-
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
+
+
+
